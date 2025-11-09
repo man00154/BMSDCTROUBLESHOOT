@@ -1,0 +1,8 @@
+streamlit
+langchain
+openai
+chromadb
+sentence-transformers
+faiss-cpu
+python-dotenv
+langgraph
