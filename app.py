@@ -1,12 +1,13 @@
 """
 app.py
-BMS Troubleshooting Chatbot (RAG + Agents + Local LLM)
-------------------------------------------------------
-Features:
- - Document ingestion & RAG (Chroma or FAISS)
+Data Centre BMS Troubleshooting Chatbot (RAG + Agents + Local LLM)
+-----------------------------------------------------------------
+Implements:
+ - Document ingestion & RAG (Chroma / FAISS)
  - Local LLM fallback (no API key needed)
- - LangChain Tools & Agents for diagnostics
- - Compatible with LangChain v0.2 and v0.3+
+ - LangChain tools & agents (v0.3+ compatible)
+ - Streamlit chat interface
+
 Run:
   streamlit run app.py
 """
@@ -16,32 +17,26 @@ import time
 import json
 import logging
 from typing import List, Any
+
 import streamlit as st
 
-# ----------------------- LangChain Imports -----------------------
+# ----------------------- LangChain Imports (modern API) -----------------------
 try:
     from langchain.embeddings import OpenAIEmbeddings
     from langchain.vectorstores import Chroma
     from langchain.schema import Document
     from langchain.chains import ConversationalRetrievalChain
     from langchain.agents import initialize_agent, AgentType
-except Exception:
+    from langchain.tools import Tool   # ✅ Correct import for LangChain v0.3+
+except Exception as e:
+    st.error(f"LangChain import error: {e}")
     OpenAIEmbeddings = None
     Chroma = None
     Document = None
     ConversationalRetrievalChain = None
     initialize_agent = None
     AgentType = None
-
-# ✅ Tool Import Compatibility Fix (new vs old LangChain)
-try:
-    from langchain.tools import Tool
-    def make_tool(func, name, description):
-        return Tool.from_function(func=func, name=name, description=description)
-except ImportError:
-    from langchain.agents import Tool
-    def make_tool(func, name, description):
-        return Tool(name=name, func=func, description=description)
+    Tool = None
 
 # ----------------------- Optional LangGraph -----------------------
 try:
@@ -196,14 +191,23 @@ def build_rag_chain(retriever, llm):
     )
 
 def build_agent(llm, retriever):
-    """Create tools and agent safely (cross-version compatible)."""
+    """Create tools and agent safely (v0.3+ Tool.from_function syntax)."""
     tools = [
-        make_tool(lambda q: tool_check_chiller_status(q),
-                  "chiller_status", "Get chiller telemetry (input: chiller ID or 'all')."),
-        make_tool(lambda q: tool_run_flow_test(q),
-                  "flow_test", "Run simulated flow test (input: circuit name)."),
-        make_tool(lambda q: tool_search_docs(q, retriever),
-                  "doc_search", "Search uploaded BMS documents.")
+        Tool.from_function(
+            func=lambda q: tool_check_chiller_status(q),
+            name="chiller_status",
+            description="Get chiller telemetry (input: chiller ID or 'all')."
+        ),
+        Tool.from_function(
+            func=lambda q: tool_run_flow_test(q),
+            name="flow_test",
+            description="Run simulated flow test (input: circuit name)."
+        ),
+        Tool.from_function(
+            func=lambda q: tool_search_docs(q, retriever),
+            name="doc_search",
+            description="Search uploaded BMS documents."
+        )
     ]
     agent = initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=False)
     return agent
