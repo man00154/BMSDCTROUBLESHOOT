@@ -201,7 +201,7 @@ def build_agent(llm, retriever):
 # -----------------------
 # Streamlit UI
 # -----------------------
-st.title("BMS Troubleshooter Chatbot")
+st.title("MANISH SINGH - BMS Troubleshooter Chatbot")
 
 # Upload documents
 uploaded_files = st.file_uploader("Upload BMS manuals or logs", type=["txt"], accept_multiple_files=True)
