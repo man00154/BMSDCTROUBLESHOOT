@@ -1,10 +1,15 @@
 """
 app.py
-Data Centre BMS Troubleshooting Chatbot (RAG + Agents + Local LLM)
------------------------------------------------------------------
-Compatible with LangChain >= 0.3.x
+----------------------------------
+Data Centre BMS Troubleshooting Chatbot
+Implements:
+ - RAG (Retrieval-Augmented Generation)
+ - LLM Agent tools for diagnostics
+ - Local free LLM fallback (no OpenAI key needed)
+ - Compatible with LangChain >= 0.3
+----------------------------------
 Run:
-  streamlit run app.py
+    streamlit run app.py
 """
 
 import os
@@ -14,9 +19,11 @@ import logging
 from typing import List, Any
 import streamlit as st
 
-# ----------------------- LangChain Imports (Modernized) -----------------------
+# -------------------------------------------------------------
+# LangChain Imports (Modern + Backward Compatibility)
+# -------------------------------------------------------------
 try:
-    # ✅ Correct imports for LangChain >= 0.3
+    # New LangChain (>=0.3) structure
     from langchain_openai import OpenAIEmbeddings
     from langchain.vectorstores import Chroma
     from langchain.schema import Document
@@ -24,7 +31,7 @@ try:
     from langchain.agents import initialize_agent, AgentType
     from langchain.tools import Tool
 except ImportError:
-    # ✅ Fallback for older LangChain
+    # Fallback for older LangChain (<0.3)
     from langchain.embeddings import OpenAIEmbeddings
     from langchain.vectorstores import Chroma
     from langchain.schema import Document
@@ -32,14 +39,18 @@ except ImportError:
     from langchain.agents import initialize_agent, AgentType
     from langchain.agents import Tool
 
-# ----------------------- Optional LangGraph -----------------------
+# -------------------------------------------------------------
+# Optional LangGraph (Orchestration Layer)
+# -------------------------------------------------------------
 try:
     import langgraph as lg
     LANGGRAPH_AVAILABLE = True
 except Exception:
     LANGGRAPH_AVAILABLE = False
 
-# ----------------------- Fallback Embeddings -----------------------
+# -------------------------------------------------------------
+# Fallback for Local Embeddings (no OpenAI key)
+# -------------------------------------------------------------
 try:
     from sentence_transformers import SentenceTransformer
     import faiss
@@ -48,25 +59,33 @@ try:
 except Exception:
     FAISS_AVAILABLE = False
 
-# ----------------------- Logging -----------------------
+# -------------------------------------------------------------
+# Logging Setup
+# -------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ----------------------- Config -----------------------
+# -------------------------------------------------------------
+# Directories
+# -------------------------------------------------------------
 DATA_DIR = "data"
 VECTORSTORE_DIR = "vectorstore"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(VECTORSTORE_DIR, exist_ok=True)
 
+# -------------------------------------------------------------
+# Streamlit UI Setup
+# -------------------------------------------------------------
 st.set_page_config(page_title="BMS Troubleshooter", layout="wide")
 st.sidebar.title("Configuration")
-
-use_langgraph = st.sidebar.checkbox("Use LangGraph (optional)", value=False and LANGGRAPH_AVAILABLE)
+use_langgraph = st.sidebar.checkbox("Enable LangGraph", value=False and LANGGRAPH_AVAILABLE)
 temperature = st.sidebar.slider("LLM Temperature", 0.0, 1.0, 0.0, 0.05)
 
-# ----------------------- Embeddings -----------------------
+# -------------------------------------------------------------
+# Embedding Factory
+# -------------------------------------------------------------
 def get_embedding_fn():
-    """Select embedding provider (OpenAI or local SentenceTransformer)."""
+    """Select embedding provider (OpenAI or local)."""
     if os.getenv("OPENAI_API_KEY"):
         emb = OpenAIEmbeddings()
         def f(texts: List[str]) -> List[List[float]]:
@@ -74,22 +93,26 @@ def get_embedding_fn():
         return f
     else:
         if not FAISS_AVAILABLE:
-            raise RuntimeError("Install sentence-transformers & faiss for local embedding.")
+            raise RuntimeError("Install sentence-transformers & faiss for local embeddings.")
         model = SentenceTransformer("all-MiniLM-L6-v2")
         def f(texts: List[str]) -> List[List[float]]:
             return model.encode(texts, show_progress_bar=False).tolist()
         return f
 
-# ----------------------- Vectorstore -----------------------
+# -------------------------------------------------------------
+# Vectorstore Builder
+# -------------------------------------------------------------
 def build_vectorstore(docs: List[dict]):
-    """Build Chroma or FAISS vectorstore from docs."""
+    """Create Chroma (OpenAI) or FAISS (local) vectorstore."""
     texts = [d["page_content"] for d in docs]
     metadatas = [d.get("metadata", {}) for d in docs]
 
     if os.getenv("OPENAI_API_KEY"):
         emb = OpenAIEmbeddings()
-        vs = Chroma.from_texts(texts=texts, embedding=emb,
-                               metadatas=metadatas, persist_directory=VECTORSTORE_DIR)
+        vs = Chroma.from_texts(
+            texts=texts, embedding=emb, metadatas=metadatas,
+            persist_directory=VECTORSTORE_DIR
+        )
         vs.persist()
         return vs
     else:
@@ -123,9 +146,11 @@ def build_vectorstore(docs: List[dict]):
         metadatas_local = [d["metadata"] for d in doc_list]
         return LocalRetriever(index, texts_local, metadatas_local, model)
 
-# ----------------------- Document Ingestion -----------------------
+# -------------------------------------------------------------
+# Document Ingestion
+# -------------------------------------------------------------
 def ingest_documents(file_objs: List[Any]):
-    """Split uploaded files into small document chunks."""
+    """Convert uploaded files to text chunks."""
     docs = []
     for f in file_objs:
         name = getattr(f, "name", "uploaded")
@@ -142,7 +167,9 @@ def ingest_documents(file_objs: List[Any]):
     st.success(f"Ingested {len(docs)} chunks from {len(file_objs)} files.")
     return docs
 
-# ----------------------- Tools -----------------------
+# -------------------------------------------------------------
+# Tools (Simulated Hardware)
+# -------------------------------------------------------------
 def tool_check_chiller_status(args: str) -> str:
     mocked = {
         "chiller1": {"temp": 6.1, "rpm": 1450, "status": "OK"},
@@ -160,26 +187,31 @@ def tool_run_flow_test(args: str) -> str:
 def tool_search_docs(query: str, retriever) -> str:
     docs = retriever.get_relevant_documents(query)
     if not docs:
-        return "No relevant docs found."
-    out = [f"SOURCE: {d.metadata.get('source','?')} — {d.page_content[:300]}" for d in docs]
-    return "\n\n".join(out)
+        return "No relevant documents found."
+    return "\n\n".join(
+        [f"SOURCE: {d.metadata.get('source','?')} — {d.page_content[:300]}" for d in docs]
+    )
 
-# ----------------------- Dummy Local LLM -----------------------
+# -------------------------------------------------------------
+# Local Dummy LLM (Free Mode)
+# -------------------------------------------------------------
 class LocalLLM:
     def __init__(self, temperature=0.0): self.temperature = temperature
-    def __call__(self, prompt): return "LOCAL_LLM_ECHO: " + prompt[:1000]
+    def __call__(self, prompt): return "LOCAL_LLM_RESPONSE: " + prompt[:1000]
 
 def get_llm():
     return LocalLLM(temperature)
 
-# ----------------------- Agent -----------------------
+# -------------------------------------------------------------
+# Agent Builder
+# -------------------------------------------------------------
 def build_agent(llm, retriever):
-    """Create tools and agent safely (v0.3+ Tool.from_function syntax)."""
+    """Create agent tools and initialize LangChain Agent."""
     tools = [
         Tool.from_function(
             func=lambda q: tool_check_chiller_status(q),
             name="chiller_status",
-            description="Get chiller telemetry (input: chiller ID or 'all')."
+            description="Get current chiller telemetry (input: ID or 'all')."
         ),
         Tool.from_function(
             func=lambda q: tool_run_flow_test(q),
@@ -190,15 +222,17 @@ def build_agent(llm, retriever):
             func=lambda q: tool_search_docs(q, retriever),
             name="doc_search",
             description="Search uploaded BMS documents."
-        )
+        ),
     ]
     return initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=False)
 
-# ----------------------- Streamlit UI -----------------------
+# -------------------------------------------------------------
+# Streamlit UI
+# -------------------------------------------------------------
 st.title("🏭 MANISH SINGH — Data Centre BMS Troubleshooter Chatbot")
-st.markdown("Upload **BMS logs/manuals** and ask the chatbot for diagnostics or chiller analysis.")
+st.markdown("Upload **BMS manuals or logs** and ask troubleshooting queries using RAG + AI Agents.")
 
-uploaded_files = st.file_uploader("Upload BMS logs/manuals (TXT only)", type=["txt"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("📁 Upload BMS Manuals or Logs (TXT)", type=["txt"], accept_multiple_files=True)
 if uploaded_files:
     docs = ingest_documents(uploaded_files)
     retriever = build_vectorstore(docs)
@@ -209,13 +243,13 @@ llm = get_llm()
 if retriever:
     agent = build_agent(llm, retriever)
 
-st.subheader("💬 Ask your question or run tools")
-user_input = st.text_input("Example: 'Why is chiller2 in alarm low flow?'")
+st.subheader("💬 Ask your BMS troubleshooting question")
+user_input = st.text_input("Example: 'Check status of all chillers' or 'Search for low flow alarm procedure'")
 
 if st.button("Submit") and user_input:
     if retriever:
-        with st.spinner("Running Agent..."):
+        with st.spinner("Agent reasoning..."):
             response = agent.run(user_input)
         st.text_area("Response", value=response, height=300)
     else:
-        st.warning("Upload documents first to enable RAG/Agent features.")
+        st.warning("Please upload at least one document to initialize RAG.")
