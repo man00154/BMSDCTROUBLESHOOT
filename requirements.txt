@@ -1,31 +1,19 @@
-# --- Streamlit UI ---
-streamlit
-
-# --- LangChain ecosystem (with OpenAI) ---
-langchain
-langchain-core
-langchain-community
-langchain-text-splitters
-langchain-openai     # ✅ contains ChatOpenAI
-langchainhub
-
-# --- Vector DBs ---
-chromadb
-faiss-cpu
-sentence-transformers
-
-# --- LLM backends ---
-openai
-transformers
-torch
-accelerate
-
-# --- Orchestration ---
-langgraph
-
-# --- Utilities ---
-python-dotenv
-requests
-tqdm
-pandas
-numpy
+streamlit>=1.37.0
+langchain>=0.3.3
+langchain-core>=0.3.8
+langchain-community>=0.3.2
+langchain-text-splitters>=0.3.0
+langchain-openai>=0.2.0
+chromadb>=0.5.3
+faiss-cpu>=1.8.0
+sentence-transformers>=3.0.1
+openai>=1.42.0
+transformers>=4.44.0
+torch>=2.3.0
+accelerate>=0.34.0
+langgraph>=0.1.8
+python-dotenv>=1.0.1
+requests>=2.32.3
+tqdm>=4.66.4
+pandas>=2.2.2
+numpy>=1.26.0
