@@ -2,12 +2,7 @@
 app.py
 Data Centre BMS Troubleshooting Chatbot (RAG + Agents + Local LLM)
 -----------------------------------------------------------------
-Implements:
- - Document ingestion & RAG (Chroma / FAISS)
- - Local LLM fallback (no API key needed)
- - LangChain tools & agents (v0.3+ compatible)
- - Streamlit chat interface
-
+Compatible with LangChain >= 0.3.x
 Run:
   streamlit run app.py
 """
@@ -17,26 +12,25 @@ import time
 import json
 import logging
 from typing import List, Any
-
 import streamlit as st
 
-# ----------------------- LangChain Imports (modern API) -----------------------
+# ----------------------- LangChain Imports (Modernized) -----------------------
 try:
+    # ✅ Correct imports for LangChain >= 0.3
+    from langchain_openai import OpenAIEmbeddings
+    from langchain.vectorstores import Chroma
+    from langchain.schema import Document
+    from langchain.chains import ConversationalRetrievalChain
+    from langchain.agents import initialize_agent, AgentType
+    from langchain.tools import Tool
+except ImportError:
+    # ✅ Fallback for older LangChain
     from langchain.embeddings import OpenAIEmbeddings
     from langchain.vectorstores import Chroma
     from langchain.schema import Document
     from langchain.chains import ConversationalRetrievalChain
     from langchain.agents import initialize_agent, AgentType
-    from langchain.tools import Tool   # ✅ Correct import for LangChain v0.3+
-except Exception as e:
-    st.error(f"LangChain import error: {e}")
-    OpenAIEmbeddings = None
-    Chroma = None
-    Document = None
-    ConversationalRetrievalChain = None
-    initialize_agent = None
-    AgentType = None
-    Tool = None
+    from langchain.agents import Tool
 
 # ----------------------- Optional LangGraph -----------------------
 try:
@@ -73,7 +67,7 @@ temperature = st.sidebar.slider("LLM Temperature", 0.0, 1.0, 0.0, 0.05)
 # ----------------------- Embeddings -----------------------
 def get_embedding_fn():
     """Select embedding provider (OpenAI or local SentenceTransformer)."""
-    if os.getenv("OPENAI_API_KEY") and OpenAIEmbeddings:
+    if os.getenv("OPENAI_API_KEY"):
         emb = OpenAIEmbeddings()
         def f(texts: List[str]) -> List[List[float]]:
             return emb.embed_documents(texts)
@@ -92,7 +86,7 @@ def build_vectorstore(docs: List[dict]):
     texts = [d["page_content"] for d in docs]
     metadatas = [d.get("metadata", {}) for d in docs]
 
-    if os.getenv("OPENAI_API_KEY") and Chroma:
+    if os.getenv("OPENAI_API_KEY"):
         emb = OpenAIEmbeddings()
         vs = Chroma.from_texts(texts=texts, embedding=emb,
                                metadatas=metadatas, persist_directory=VECTORSTORE_DIR)
@@ -150,7 +144,6 @@ def ingest_documents(file_objs: List[Any]):
 
 # ----------------------- Tools -----------------------
 def tool_check_chiller_status(args: str) -> str:
-    """Simulate chiller status fetch."""
     mocked = {
         "chiller1": {"temp": 6.1, "rpm": 1450, "status": "OK"},
         "chiller2": {"temp": 12.4, "rpm": 1300, "status": "ALARM: low flow"},
@@ -161,12 +154,10 @@ def tool_check_chiller_status(args: str) -> str:
     return json.dumps({args: mocked.get(args, "unknown chiller")}, indent=2)
 
 def tool_run_flow_test(args: str) -> str:
-    """Simulate flow test execution."""
     time.sleep(1)
     return f"Flow test completed for circuit '{args}'. Measured flow: 64 L/min (simulated)."
 
 def tool_search_docs(query: str, retriever) -> str:
-    """Search docs (for the agent)."""
     docs = retriever.get_relevant_documents(query)
     if not docs:
         return "No relevant docs found."
@@ -179,17 +170,9 @@ class LocalLLM:
     def __call__(self, prompt): return "LOCAL_LLM_ECHO: " + prompt[:1000]
 
 def get_llm():
-    """Return a dummy LLM if OpenAI not configured."""
     return LocalLLM(temperature)
 
-# ----------------------- RAG & Agent -----------------------
-def build_rag_chain(retriever, llm):
-    if ConversationalRetrievalChain is None:
-        raise RuntimeError("LangChain ConversationalRetrievalChain not available.")
-    return ConversationalRetrievalChain.from_llm(
-        llm=llm, retriever=retriever, return_source_documents=True
-    )
-
+# ----------------------- Agent -----------------------
 def build_agent(llm, retriever):
     """Create tools and agent safely (v0.3+ Tool.from_function syntax)."""
     tools = [
@@ -209,12 +192,11 @@ def build_agent(llm, retriever):
             description="Search uploaded BMS documents."
         )
     ]
-    agent = initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=False)
-    return agent
+    return initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=False)
 
 # ----------------------- Streamlit UI -----------------------
 st.title("🏭 MANISH SINGH — Data Centre BMS Troubleshooter Chatbot")
-st.markdown("Upload **BMS logs/manuals** and ask the chatbot for diagnostics, flow test simulation, or chiller analysis.")
+st.markdown("Upload **BMS logs/manuals** and ask the chatbot for diagnostics or chiller analysis.")
 
 uploaded_files = st.file_uploader("Upload BMS logs/manuals (TXT only)", type=["txt"], accept_multiple_files=True)
 if uploaded_files:
@@ -224,7 +206,6 @@ else:
     retriever = None
 
 llm = get_llm()
-
 if retriever:
     agent = build_agent(llm, retriever)
 
