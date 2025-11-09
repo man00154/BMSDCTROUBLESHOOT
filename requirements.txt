@@ -1,8 +1,31 @@
-streamlit
+# --- Streamlit for UI ---
+streamlit>=1.37.0
+
+# --- Core LangChain libraries ---
 langchain
-openai
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-openai
+langchainhub
+
+# --- Embedding / Vectorstore support ---
 chromadb
-sentence-transformers
 faiss-cpu
-python-dotenv
+sentence-transformers
+
+# --- LLM Providers (OpenAI + Hugging Face local fallback) ---
+openai
+transformers
+accelerate
+torch
+numpy
+
+# --- LangGraph (for agent orchestration) ---
 langgraph
+
+# --- Utilities ---
+python-dotenv
+tqdm
+requests
+pandas
