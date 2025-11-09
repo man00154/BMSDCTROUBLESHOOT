@@ -34,7 +34,7 @@ try:
     from langchain.schema import Document
     from langchain.chains import ConversationalRetrievalChain
     from langchain.agents import Tool, initialize_agent, AgentType, load_tools
-    from langchain.chat_models import ChatOpenAI
+    from langchain_openai import ChatOpenAI
     from langchain.prompts import PromptTemplate
 except Exception as e:
     st.warning("Some langchain packages missing (will attempt to import on-demand). "
